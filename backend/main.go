@@ -1,36 +1,68 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"os"
-	"strings"
+	"ebook-finder-app/handlers"
+	"log"
+	"net/http"
 
-	"github.com/gocolly/colly"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	var searchQuery string
-	fmt.Print("Type Book You Want to Search -> ")
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		searchQuery = scanner.Text()
+	r := gin.Default()
+	r.Use(cors.Default())
+	initRoutes(r)
+	r.Run(":8080")
+}
+
+func amazonRequestHandler(c *gin.Context) {
+	searchQuery := c.Param("search")
+	amazonHandlerPackets, err := handlers.AmazonHandler(searchQuery)
+	if err != nil {
+		log.Print("Error Fetching Data From Amazon", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Get Books From Amazon"})
+		return
 	}
-	modifiedQuery := strings.Replace(searchQuery, " ", "+", -1)
-	c := colly.NewCollector(
-	// Visit only domains: hackerspaces.org, wiki.hackerspaces.org
-	// colly.AllowedDomains("en.wikipedia.org"),
-	)
+	c.JSON(http.StatusOK, amazonHandlerPackets)
+}
 
-	c.OnHTML("h2 a[href]", func(e *colly.HTMLElement) {
-		link := e.Attr("href")
-		fmt.Print("Book found: -> https://amazon.in" + link + " ")
-	})
+func gutenbergRequestHandler(c *gin.Context) {
+	searchQuery := c.Param("search")
+	HandlerPackets, err := handlers.GutenbergHandler(searchQuery)
+	if err != nil {
+		log.Print("Error Fetching Data From Gutenberg", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Get Books From Gutenberg"})
+		return
+	}
+	c.JSON(http.StatusOK, HandlerPackets)
+}
 
-	c.OnRequest(func(r *colly.Request) {
-		fmt.Println(" Visiting -> ", r.URL.String())
-	})
+func oceanofPDFRequestHandler(c *gin.Context) {
+	searchQuery := c.Param("search")
+	HandlerPackets, err := handlers.OceanOfPDFHandler(searchQuery)
+	if err != nil {
+		log.Print("Error Fetching Data From OceanOfPDF", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Get Books From Ocean of PDF"})
+		return
+	}
+	c.JSON(http.StatusOK, HandlerPackets)
+}
 
-	c.Visit("https://amazon.in/s?k=" + modifiedQuery)
-	fmt.Print("https://amazon.in/s?k=" + modifiedQuery)
+func archiveRequestHandler(c *gin.Context) {
+	searchQuery := c.Param("search")
+	HandlerPackets, err := handlers.ArchiveHandler(searchQuery)
+	if err != nil {
+		log.Print("Error Fetching Data From Archives", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Get Books From Archives"})
+		return
+	}
+	c.JSON(http.StatusOK, HandlerPackets)
+}
+
+func initRoutes(r *gin.Engine) {
+	r.GET("/api/amazon/:search", amazonRequestHandler)
+	r.GET("/api/gutenberg/:search", gutenbergRequestHandler)
+	r.GET("/api/oceanofpdf/:search", oceanofPDFRequestHandler)
+	r.GET("/api/archive/:search", archiveRequestHandler)
 }
